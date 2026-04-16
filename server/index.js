@@ -1,5 +1,7 @@
 const express = require('express');
 const cors = require('cors');
+const helmet = require('helmet');
+const rateLimit = require('express-rate-limit');
 const axios = require('axios');
 const NodeCache = require('node-cache');
 require('dotenv').config();
@@ -24,8 +26,36 @@ const PORT = parseInt(process.env.PORT, 10) || 3001;
 const ESI_BASE_URL = 'https://esi.evetech.net/latest';
 const cache = new NodeCache({ stdTTL: 300 });
 
-app.use(cors());
-app.use(express.json());
+app.disable('x-powered-by');
+app.set('trust proxy', 1);
+
+const allowedOrigins = (process.env.CORS_ORIGIN || 'https://jumps.tovdc.com,http://localhost:3000,http://127.0.0.1:3000')
+  .split(',')
+  .map((s) => s.trim())
+  .filter(Boolean);
+
+app.use(helmet({
+  crossOriginResourcePolicy: { policy: 'cross-origin' }
+}));
+
+app.use(cors({
+  origin(origin, callback) {
+    // Allow same-origin/non-browser requests (curl, health checks, server-to-server).
+    if (!origin) return callback(null, true);
+    if (allowedOrigins.includes(origin)) return callback(null, true);
+    return callback(new Error('Not allowed by CORS'));
+  }
+}));
+
+const apiLimiter = rateLimit({
+  windowMs: 60 * 1000,
+  max: 120,
+  standardHeaders: true,
+  legacyHeaders: false
+});
+
+app.use('/api', apiLimiter);
+app.use(express.json({ limit: '100kb' }));
 
 const esiClient = axios.create({
   baseURL: ESI_BASE_URL,
@@ -409,6 +439,13 @@ app.get('/api/topology/:systemId', async (req, res) => {
     console.error('Error fetching system topology:', error);
     res.status(500).json({ error: 'Failed to fetch system topology' });
   }
+});
+
+app.use((err, req, res, next) => {
+  if (err && err.message === 'Not allowed by CORS') {
+    return res.status(403).json({ error: 'Origin not allowed' });
+  }
+  return next(err);
 });
 
 let server;

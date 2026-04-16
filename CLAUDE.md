@@ -132,41 +132,21 @@ The PostgreSQL database (`eve_emptiness`) contains:
 
 The site is deployed at **https://jumps.tovdc.com**.
 
-### Host
-- **Hostname:** `botrick.tovdc.com` (public IP `107.152.45.110`)
-- **SSH:** `ssh root@botrick.tovdc.com` (key-based auth)
-- **OS:** Ubuntu 24.04.4 LTS (noble), systemd 255, Node.js 22.22.0, npm 10.9.4
-- **Shared tenancy:** Caddy also serves `hive.missylabs.com → localhost:8080` on this host — do not disturb.
+### Operational Security Note
 
-### Layout on host
-- **App root:** `/opt/eve-emptiness` (full repo checkout, rsync'd from dev machine)
-- **Server code:** `/opt/eve-emptiness/server` (runs `node index.js`)
-- **Client build:** `/opt/eve-emptiness/client/dist` (served statically by Caddy)
-- **Database:** PostgreSQL 16 (local, Unix socket / 127.0.0.1:5432). DB `eve_emptiness`, user `eve_emptiness`. Password stored in `/opt/eve-emptiness/server/.env` (mode 600). Admin access: `sudo -u postgres psql eve_emptiness`.
-- **Env file:** `/opt/eve-emptiness/server/.env` (mode 600) — `PORT=3001`, `ENABLE_COLLECTOR=true`, `PGHOST=127.0.0.1`, `PGPORT=5432`, `PGDATABASE=eve_emptiness`, `PGUSER=eve_emptiness`, `PGPASSWORD=<secret>`.
+This repository intentionally avoids committing hostnames, IP addresses, SSH targets, service unit internals, or deployment credentials. Keep environment-specific runbooks in a private ops document, not in source control.
 
-### Process management
-- **systemd unit:** `/etc/systemd/system/eve-emptiness.service` (User=root, WorkingDirectory=/opt/eve-emptiness/server, EnvironmentFile=.env, ExecStart=/usr/bin/node index.js, Restart=on-failure)
-- **Control:** `systemctl {status,restart,stop} eve-emptiness`
-- **Logs:** `journalctl -u eve-emptiness -f` (SyslogIdentifier=`eve-emptiness`)
-- Collector runs in-process (hourly cron inside the Node server); no separate collector service.
+### Generic deployment model
+- Reverse proxy serves the built client and forwards `/api/*` to the Node server.
+- Node server reads runtime settings from `server/.env`.
+- PostgreSQL runs separately and is accessed via least-privilege credentials.
+- Process supervisor (e.g. systemd) restarts the API on failure.
 
-### Reverse proxy / TLS
-- **Caddy** handles TLS (ACME auto-cert) and static file serving. Config: `/etc/caddy/Caddyfile`.
-- The `jumps.tovdc.com` block: `/api/*` → `reverse_proxy localhost:3001`, everything else → `file_server` rooted at `/opt/eve-emptiness/client/dist` with SPA `try_files {path} /index.html` fallback. `encode zstd gzip` enabled.
-- Reload after Caddyfile edits: `caddy validate --config /etc/caddy/Caddyfile && systemctl reload caddy`. Backups saved as `/etc/caddy/Caddyfile.bak.<epoch>`.
-- HTTP→HTTPS redirect is automatic via Caddy.
+### Generic deploy workflow
+1. Sync/update code on the host.
+2. Install production dependencies for `server/`.
+3. Build `client/`.
+4. Restart API process.
+5. Validate reverse proxy config before reload/restart.
 
-### Redeploy workflow
-From dev machine (`/home/bmerriam/git/eve-emptiness`):
-```bash
-rsync -az --delete \
-  --exclude node_modules --exclude .git \
-  --exclude client/dist --exclude .env \
-  ./ root@botrick.tovdc.com:/opt/eve-emptiness/
-ssh root@botrick.tovdc.com '
-  cd /opt/eve-emptiness/server && npm install --omit=dev &&
-  cd /opt/eve-emptiness/client && npm install && npm run build &&
-  systemctl restart eve-emptiness'
-```
-Server-side changes only: `systemctl restart eve-emptiness`. Client-only changes: rebuild `client/dist`; no service restart needed (Caddy serves files directly).
+Keep machine-specific commands in private infrastructure docs.

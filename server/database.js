@@ -421,6 +421,7 @@ async function getGateCampingSystems(filters) {
     ? `AND sa.jumps >= $${++paramIdx}` : '';
   if (filters.minJumps > 0) params.push(filters.minJumps);
 
+  const paramsWithoutLimit = [...params];
   const limitParam = `$${++paramIdx}`;
   params.push(filters.limit);
 
@@ -447,11 +448,21 @@ async function getGateCampingSystems(filters) {
   );
 
   const countResult = await pool.query(
-    `SELECT COUNT(*)::int AS total FROM system_topology t WHERE ${conditions.join(' AND ')}`,
-    params.slice(0, conditions.length - 1 + (filters.minBottleneck > 0 ? 1 : 0))
+    `SELECT COUNT(*)::int AS total
+       FROM system_topology t
+       LEFT JOIN LATERAL (
+         SELECT jumps
+           FROM system_activity
+          WHERE system_id = t.system_id
+          ORDER BY timestamp DESC
+          LIMIT 1
+       ) sa ON true
+      WHERE ${conditions.join(' AND ')}
+            ${minJumpsCondition}`,
+    paramsWithoutLimit
   );
 
-  return { systems: rows, total: rows.length };
+  return { systems: rows, total: countResult.rows[0]?.total ?? rows.length };
 }
 
 async function getSystemTopology(systemId) {
