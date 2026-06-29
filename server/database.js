@@ -83,6 +83,50 @@ async function initializeDatabase() {
       lowest_activity_hour INTEGER,
       days_tracked INTEGER DEFAULT 0
     );
+
+    CREATE TABLE IF NOT EXISTS pochven_market_snapshots (
+      id BIGSERIAL PRIMARY KEY,
+      started_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+      completed_at TIMESTAMPTZ,
+      status TEXT NOT NULL DEFAULT 'running',
+      source_window_hours INTEGER NOT NULL DEFAULT 24,
+      item_count INTEGER NOT NULL DEFAULT 0,
+      system_count INTEGER NOT NULL DEFAULT 0,
+      error_message TEXT
+    );
+
+    CREATE TABLE IF NOT EXISTS pochven_market_opportunities (
+      id BIGSERIAL PRIMARY KEY,
+      snapshot_id BIGINT REFERENCES pochven_market_snapshots(id) ON DELETE CASCADE,
+      system_id INTEGER NOT NULL,
+      system_name TEXT NOT NULL,
+      clade TEXT NOT NULL,
+      type_id INTEGER NOT NULL,
+      item_name TEXT NOT NULL,
+      category TEXT NOT NULL,
+      recommendation TEXT NOT NULL,
+      suggested_quantity INTEGER NOT NULL,
+      jita_sell_price NUMERIC,
+      jita_buy_price NUMERIC,
+      local_sell_price NUMERIC,
+      local_order_count INTEGER NOT NULL DEFAULT 0,
+      suggested_sell_price NUMERIC,
+      estimated_margin_pct REAL,
+      opportunity_score REAL NOT NULL,
+      activity_score REAL NOT NULL,
+      scarcity_score REAL NOT NULL,
+      margin_score REAL NOT NULL,
+      doctrine_relevance REAL NOT NULL,
+      confidence_score REAL NOT NULL,
+      logistics_risk REAL NOT NULL,
+      overstock_penalty REAL NOT NULL,
+      evidence JSONB NOT NULL DEFAULT '{}',
+      created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+    );
+    CREATE INDEX IF NOT EXISTS idx_pochven_opp_snapshot_score
+      ON pochven_market_opportunities (snapshot_id, opportunity_score DESC);
+    CREATE INDEX IF NOT EXISTS idx_pochven_opp_system
+      ON pochven_market_opportunities (system_id, snapshot_id);
   `);
   console.log('Database initialized successfully');
 }
@@ -477,6 +521,125 @@ async function close() {
   await pool.end();
 }
 
+async function startPochvenSnapshot(sourceWindowHours) {
+  const { rows } = await pool.query(
+    `INSERT INTO pochven_market_snapshots (source_window_hours, status)
+     VALUES ($1, 'running')
+     RETURNING id`,
+    [sourceWindowHours]
+  );
+  return rows[0].id;
+}
+
+async function finishPochvenSnapshot(id, fields) {
+  await pool.query(
+    `UPDATE pochven_market_snapshots
+        SET completed_at = NOW(),
+            status = $2,
+            item_count = $3,
+            system_count = $4,
+            error_message = $5
+      WHERE id = $1`,
+    [id, fields.status, fields.item_count || 0, fields.system_count || 0, fields.error_message || null]
+  );
+}
+
+async function insertPochvenOpportunities(snapshotId, opportunities) {
+  if (!opportunities.length) return;
+  const client = await pool.connect();
+  try {
+    await client.query('BEGIN');
+    for (const o of opportunities) {
+      await client.query(
+        `INSERT INTO pochven_market_opportunities (
+          snapshot_id, system_id, system_name, clade, type_id, item_name, category,
+          recommendation, suggested_quantity, jita_sell_price, jita_buy_price,
+          local_sell_price, local_order_count, suggested_sell_price, estimated_margin_pct,
+          opportunity_score, activity_score, scarcity_score, margin_score, doctrine_relevance,
+          confidence_score, logistics_risk, overstock_penalty, evidence
+        ) VALUES (
+          $1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21,$22,$23,$24
+        )`,
+        [
+          snapshotId, o.system_id, o.system_name, o.clade, o.type_id, o.item_name, o.category,
+          o.recommendation, o.suggested_quantity, o.jita_sell_price, o.jita_buy_price,
+          o.local_sell_price, o.local_order_count, o.suggested_sell_price, o.estimated_margin_pct,
+          o.opportunity_score, o.activity_score, o.scarcity_score, o.margin_score,
+          o.doctrine_relevance, o.confidence_score, o.logistics_risk, o.overstock_penalty,
+          JSON.stringify(o.evidence || {})
+        ]
+      );
+    }
+    await client.query('COMMIT');
+  } catch (err) {
+    await client.query('ROLLBACK');
+    throw err;
+  } finally {
+    client.release();
+  }
+}
+
+async function getLatestPochvenSnapshot() {
+  const { rows } = await pool.query(
+    `SELECT * FROM pochven_market_snapshots
+      WHERE status = 'success'
+      ORDER BY completed_at DESC
+      LIMIT 1`
+  );
+  return rows[0] || null;
+}
+
+async function getPochvenOpportunities(filters = {}) {
+  const snapshot = filters.snapshotId
+    ? { id: filters.snapshotId }
+    : await getLatestPochvenSnapshot();
+  if (!snapshot) return { snapshot: null, opportunities: [], total: 0 };
+
+  const conditions = ['snapshot_id = $1'];
+  const params = [snapshot.id];
+  let idx = 1;
+  if (filters.system) {
+    conditions.push(`LOWER(system_name) = LOWER($${++idx})`);
+    params.push(filters.system);
+  }
+  if (filters.category) {
+    conditions.push(`category = $${++idx}`);
+    params.push(filters.category);
+  }
+  if (filters.recommendation) {
+    conditions.push(`recommendation = $${++idx}`);
+    params.push(filters.recommendation);
+  }
+  if (filters.minScore) {
+    conditions.push(`opportunity_score >= $${++idx}`);
+    params.push(filters.minScore);
+  }
+
+  const count = await pool.query(
+    `SELECT COUNT(*)::int AS total
+       FROM pochven_market_opportunities
+      WHERE ${conditions.join(' AND ')}`,
+    params
+  );
+
+  const limit = filters.limit || 100;
+  params.push(limit);
+  const { rows } = await pool.query(
+    `SELECT *
+       FROM pochven_market_opportunities
+      WHERE ${conditions.join(' AND ')}
+      ORDER BY opportunity_score DESC, estimated_margin_pct DESC NULLS LAST
+      LIMIT $${params.length}`,
+    params
+  );
+
+  return {
+    snapshot: filters.snapshotId ? snapshot : await getLatestPochvenSnapshot(),
+    opportunities: rows,
+    total: count.rows[0]?.total || 0
+  };
+}
+
 module.exports = {
   pool,
   initializeDatabase,
@@ -497,5 +660,10 @@ module.exports = {
   getTopologyLastUpdated,
   getGateCampingSystems,
   getSystemTopology,
+  startPochvenSnapshot,
+  finishPochvenSnapshot,
+  insertPochvenOpportunities,
+  getLatestPochvenSnapshot,
+  getPochvenOpportunities,
   close
 };

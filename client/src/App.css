@@ -670,6 +670,190 @@
   font-weight: bold;
 }
 
+.mode-switch-btn.mode-pochven.active {
+  background: rgba(34, 197, 94, 0.18);
+  color: #22c55e;
+  font-weight: bold;
+}
+
+.pochven-filters {
+  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+}
+
+.pochven-dashboard {
+  display: grid;
+  gap: 1.25rem;
+}
+
+.pochven-score-card {
+  padding-bottom: 0.75rem;
+}
+
+.section-header.compact {
+  gap: 1rem;
+  margin-bottom: 0.75rem;
+  align-items: center;
+}
+
+.inline-actions {
+  margin-top: 0;
+  flex-wrap: wrap;
+}
+
+.compact-action {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.4rem;
+  min-width: 128px;
+  border: none;
+  font-size: 0.85rem;
+}
+
+.pochven-table-wrap {
+  max-height: 680px;
+  overflow: auto;
+  border: 1px solid #333;
+  border-radius: 8px;
+  background: #10101d;
+}
+
+.pochven-table {
+  width: 100%;
+  min-width: 1120px;
+  border-collapse: collapse;
+  color: #e0e0e0;
+  font-size: 0.9rem;
+}
+
+.pochven-table th {
+  position: sticky;
+  top: 0;
+  z-index: 1;
+  background: #161627;
+  color: #a0a0a0;
+  text-align: left;
+  font-weight: 600;
+  padding: 0.75rem;
+  border-bottom: 1px solid #333;
+}
+
+.pochven-table td {
+  padding: 0.75rem;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+  vertical-align: top;
+}
+
+.pochven-table tr:hover td {
+  background: rgba(139, 92, 246, 0.08);
+}
+
+.recommendation-pill,
+.tag-pill {
+  display: inline-flex;
+  align-items: center;
+  border-radius: 999px;
+  padding: 0.2rem 0.55rem;
+  font-size: 0.78rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  white-space: nowrap;
+}
+
+.call-seed-now .recommendation-pill {
+  color: #22c55e;
+  background: rgba(34, 197, 94, 0.14);
+  border: 1px solid rgba(34, 197, 94, 0.45);
+}
+
+.call-watch .recommendation-pill {
+  color: #fbbf24;
+  background: rgba(251, 191, 36, 0.14);
+  border: 1px solid rgba(251, 191, 36, 0.45);
+}
+
+.call-avoid .recommendation-pill {
+  color: #ef4444;
+  background: rgba(239, 68, 68, 0.12);
+  border: 1px solid rgba(239, 68, 68, 0.35);
+}
+
+.muted-small {
+  color: #85859a;
+  font-size: 0.78rem;
+  margin-top: 0.2rem;
+}
+
+.link-button,
+.evidence-btn {
+  color: #93c5fd;
+  background: transparent;
+  border: none;
+  padding: 0;
+  cursor: pointer;
+  font: inherit;
+}
+
+.link-button:hover,
+.evidence-btn:hover {
+  color: #bfdbfe;
+  text-decoration: underline;
+}
+
+.table-empty {
+  text-align: center;
+  color: #a0a0a0;
+  padding: 2rem !important;
+}
+
+.pochven-evidence {
+  max-width: 760px;
+  max-height: calc(100vh - 4rem);
+  overflow-y: auto;
+}
+
+.evidence-section {
+  color: #a0a0a0;
+}
+
+.evidence-section h3 {
+  color: #e0e0e0;
+  margin: 1rem 0 0.5rem;
+}
+
+.evidence-section ul {
+  margin-left: 1.25rem;
+  line-height: 1.45;
+}
+
+.tag-row,
+.killmail-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+}
+
+.tag-pill {
+  color: #38bdf8;
+  background: rgba(56, 189, 248, 0.12);
+  border: 1px solid rgba(56, 189, 248, 0.35);
+}
+
+.killmail-list a {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.25rem;
+  color: #93c5fd;
+  text-decoration: none;
+  border: 1px solid #333;
+  border-radius: 6px;
+  padding: 0.35rem 0.55rem;
+}
+
+.killmail-list a:hover {
+  border-color: #8b5cf6;
+}
+
 /* Gate Camping Cards */
 .gate-camp-card {
   display: flex;

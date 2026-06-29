@@ -20,6 +20,11 @@ const {
 } = require('./database');
 const { startScheduler } = require('./collector');
 const { calculateActivityScore, calculateGateCampScore, clampInt, clampFloat, TREND_DIRECTIONS, TOPOLOGY_TYPES, SEC_TRANSITIONS } = require('./utils');
+const {
+  buildPochvenOpportunities,
+  getOrBuildPochvenOpportunities,
+  opportunitiesToCsv
+} = require('./pochven');
 
 const app = express();
 const PORT = parseInt(process.env.PORT, 10) || 3001;
@@ -438,6 +443,41 @@ app.get('/api/topology/:systemId', async (req, res) => {
   } catch (error) {
     console.error('Error fetching system topology:', error);
     res.status(500).json({ error: 'Failed to fetch system topology' });
+  }
+});
+
+app.get('/api/pochven/opportunities', async (req, res) => {
+  try {
+    const result = await getOrBuildPochvenOpportunities(req.query);
+    res.json(result);
+  } catch (error) {
+    console.error('Error fetching Pochven opportunities:', error);
+    res.status(500).json({ error: 'Failed to fetch Pochven market opportunities' });
+  }
+});
+
+app.post('/api/pochven/refresh', async (req, res) => {
+  try {
+    const result = await buildPochvenOpportunities({
+      windowHours: req.body?.windowHours,
+      limit: req.body?.limit
+    });
+    res.json(result);
+  } catch (error) {
+    console.error('Error refreshing Pochven opportunities:', error);
+    res.status(500).json({ error: 'Failed to refresh Pochven market opportunities' });
+  }
+});
+
+app.get('/api/pochven/opportunities.csv', async (req, res) => {
+  try {
+    const result = await getOrBuildPochvenOpportunities(req.query);
+    res.setHeader('Content-Type', 'text/csv; charset=utf-8');
+    res.setHeader('Content-Disposition', 'attachment; filename="pochven-market-opportunities.csv"');
+    res.send(opportunitiesToCsv(result.opportunities));
+  } catch (error) {
+    console.error('Error exporting Pochven opportunities:', error);
+    res.status(500).json({ error: 'Failed to export Pochven market opportunities' });
   }
 });
 

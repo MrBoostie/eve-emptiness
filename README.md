@@ -10,10 +10,11 @@
 
 **Find the quietest corners and deadliest chokepoints in New Eden.**
 
-EVE Emptiness is a real-time intelligence tool for EVE Online that analyzes every system in k-space using CCP's ESI API. It operates in two modes:
+EVE Emptiness is a real-time intelligence tool for EVE Online that analyzes every system in k-space using CCP's ESI API. It operates in three modes:
 
 - **Empty Systems** — Find dead-quiet systems for ratting, exploration, or setting up shop undisturbed.
 - **Gate Camping** — Identify high-traffic chokepoints, pipe systems, and security border crossings ideal for gate camps.
+- **Pochven Seeding** — Rank activity-backed Pochven market opportunities with Jita/local price context and evidence trails.
 
 **Live at [jumps.tovdc.com](https://jumps.tovdc.com)**
 
@@ -35,6 +36,17 @@ EVE Emptiness is a real-time intelligence tool for EVE Online that analyzes ever
 - **Security transition detection** — automatically flags gates crossing highsec/lowsec/nullsec boundaries
 - **Composite Gate Camp Score** (0-100) weighting bottleneck centrality (40%), traffic (30%), kills (20%), and security transitions (10%)
 - Connected systems list with security status on every card
+
+### Pochven Seeding Mode
+- Static 27-system Pochven model, derived from ESI's Pochven region and clade constellations
+- Activity ingest from ESI jumps/kills and recent zKillboard losses
+- Jita 4-4 baseline pricing from The Forge market orders
+- Pochven regional sell-order comparison where public ESI market visibility is available
+- Deterministic opportunity score using activity, doctrine relevance, scarcity, margin, confidence, logistics risk, and overstock penalty
+- Evidence drawer per recommendation with matched tags, killmail samples, observed item losses, and confidence notes
+- CSV export and copyable buylist flow
+
+Pochven market data is deliberately confidence-labeled. Public ESI can miss private or access-limited structure markets, so the tool reports "where available" local pricing rather than pretending to be an omniscient market oracle.
 
 ### Shared
 - Interactive charts (Recharts) — bar charts, pie charts, area charts
@@ -58,6 +70,7 @@ EVE Emptiness is a real-time intelligence tool for EVE Online that analyzes ever
                     │  /api/systems/activity       │
                     │  /api/systems/gatecamping    │
                     │  /api/topology/:id           │
+                    │  /api/pochven/*              │
                     │  /api/regions                │
                     │  /api/trending/*             │
                     │  /api/history/*              │
@@ -69,6 +82,7 @@ EVE Emptiness is a real-time intelligence tool for EVE Online that analyzes ever
               │  system_activity│    │                  │
               │  system_topology│    │  /universe/*     │
               │  system_trends  │    │  /sovereignty/*  │
+              │  pochven_market │    │  /markets/*      │
               │  collection_runs│    │  /stargates/*    │
               │  sov_history    │    │                  │
               └─────────────────┘    └──────────────────┘
@@ -81,6 +95,7 @@ EVE Emptiness is a real-time intelligence tool for EVE Online that analyzes ever
 | `index.js` | Express server, API endpoints, ESI caching layer |
 | `database.js` | PostgreSQL schema, queries (all async via `pg` Pool) |
 | `collector.js` | Hourly data collection, topology graph building, Brandes' centrality algorithm |
+| `pochven.js` | Pochven activity, zKill, market pricing, scoring, and CSV export |
 | `utils.js` | Scoring functions, validation helpers, shared constants |
 
 ### Frontend (`/client`)
@@ -90,6 +105,7 @@ EVE Emptiness is a real-time intelligence tool for EVE Online that analyzes ever
 | `App.jsx` | Root component — mode switch, shared state, detail modal |
 | `EmptySystemsView.jsx` | Low-activity mode: live data + historical trends |
 | `GateCampingView.jsx` | Gate camping mode: filters, charts, system grid |
+| `PochvenSeedingView.jsx` | Pochven market opportunities: filters, table, evidence drawer, CSV/buylist |
 | `GateCampCard.jsx` | Individual system card with topology badges and bottleneck bar |
 | `GateCampingFilters.jsx` | Gate camping filter panel |
 
@@ -161,6 +177,13 @@ npm start      # Start production server
 |----------|--------|-------------|
 | `GET /api/systems/gatecamping` | `minBottleneck`, `topologyType`, `secTransition`, `securityMin`, `securityMax`, `region`, `minJumps`, `limit` | Systems ranked by bottleneck score |
 | `GET /api/topology/:systemId` | — | Single system's topology data |
+
+### Pochven Market Seeding
+| Endpoint | Params | Description |
+|----------|--------|-------------|
+| `GET /api/pochven/opportunities` | `system`, `category`, `recommendation`, `minScore`, `limit`, `windowHours`, `maxAgeMinutes`, `force` | Ranked Pochven seeding recommendations with evidence |
+| `POST /api/pochven/refresh` | JSON: `windowHours`, `limit` | Force a fresh ESI/zKill/market snapshot |
+| `GET /api/pochven/opportunities.csv` | Same filters as opportunities | CSV export for spreadsheet/shopping workflows |
 
 ### Historical
 | Endpoint | Params | Description |

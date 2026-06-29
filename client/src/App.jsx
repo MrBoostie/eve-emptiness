@@ -1,8 +1,9 @@
 import React, { useState, useEffect } from 'react';
 import axios from 'axios';
-import { Search, Filter, RefreshCw, AlertCircle, Shield, Zap, Users, MapPin, Activity, Clock, Database, Crosshair } from 'lucide-react';
+import { Search, Filter, RefreshCw, AlertCircle, Shield, Zap, Users, MapPin, Activity, Clock, Database, Crosshair, ShoppingCart } from 'lucide-react';
 import EmptySystemsView from './EmptySystemsView';
 import GateCampingView from './GateCampingView';
+import PochvenSeedingView from './PochvenSeedingView';
 import './App.css';
 
 function App() {
@@ -166,7 +167,11 @@ function App() {
       <header className="header">
         <div className="header-content">
           <h1>EVE Emptiness</h1>
-          <p>{appMode === 'empty' ? 'Find Low Activity Systems in New Eden' : 'Find Gate Camping Chokepoints in New Eden'}</p>
+          <p>
+            {appMode === 'empty' && 'Find Low Activity Systems in New Eden'}
+            {appMode === 'gatecamping' && 'Find Gate Camping Chokepoints in New Eden'}
+            {appMode === 'pochven' && 'Activity-Driven Pochven Market Seeding'}
+          </p>
         </div>
       </header>
 
@@ -185,6 +190,13 @@ function App() {
           >
             <Crosshair size={16} />
             Gate Camping
+          </button>
+          <button
+            className={`mode-switch-btn mode-pochven ${appMode === 'pochven' ? 'active' : ''}`}
+            onClick={() => { setAppMode('pochven'); setSelectedSystem(null); }}
+          >
+            <ShoppingCart size={16} />
+            Pochven Seeding
           </button>
         </div>
 
@@ -274,13 +286,15 @@ function App() {
               getActivityLevel={getActivityLevel}
             />
           </>
-        ) : (
+        ) : appMode === 'gatecamping' ? (
           <GateCampingView
             regions={regions}
             selectedSystem={selectedSystem}
             setSelectedSystem={setSelectedSystem}
             getSecurityClass={getSecurityClass}
           />
+        ) : (
+          <PochvenSeedingView />
         )}
 
         {modalSystem && (
